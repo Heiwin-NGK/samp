@@ -1,4 +1,4 @@
-name: Frontend Docker Deployment
+name: Frontend Docker CI/CD
 
 on:
   push:
@@ -6,7 +6,8 @@ on:
       - main
 
 jobs:
-  deploy:
+  build:
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
 
     defaults:
@@ -14,7 +15,7 @@ jobs:
         working-directory: Frontend/inventory_management_system
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Login to Docker Hub
@@ -24,12 +25,20 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Docker Image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/inventory-frontend:latest .
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/inventory-frontend:latest .
 
       - name: Push Docker Image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/inventory-frontend:latest
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/inventory-frontend:latest
 
-      - name: Deploy on EC2
+  deploy:
+    name: Deploy to EC2
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy Frontend
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.HOST }}
@@ -42,6 +51,7 @@ jobs:
             docker rm inventory-frontend || true
 
             docker run -d \
+              --restart unless-stopped \
               --name inventory-frontend \
               -p 80:80 \
               ${{ secrets.DOCKER_USERNAME }}/inventory-frontend:latest
